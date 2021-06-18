@@ -1,0 +1,72 @@
+version: '3.2'
+services:
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+      - 6379:6379
+    networks:
+      - elastic
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.13.2
+    container_name: elasticsearch
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      discovery.type: single-node
+    volumes:
+      - type: bind
+        source: ./elasticsearch
+        target: /usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elastic
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.13.2
+    container_name: kibana
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    networks:
+      - elastic
+    depends_on:
+      - elasticsearch
+
+  backend:
+    container_name: backend
+    image: backend
+    build:
+      context: backend/
+    environment:
+      PORT: 9090
+      ES_HOST: elasticsearch
+      ES_INDEX: soltia
+    command: ["nest", "start"]
+    ports:
+      - 9090:9090
+    networks:
+      - elastic
+    depends_on:
+      - elasticsearch
+
+  frontend:
+    container_name: frontend
+    image: frontend
+    build:
+      context: frontend/
+    environment:
+      NEXT_PUBLIC_API: backend:9090
+    ports:
+      - 3000:3000
+    networks:
+      - elastic
+    depends_on:
+      - backend
+
+networks:
+  elastic:
+    driver: bridge
